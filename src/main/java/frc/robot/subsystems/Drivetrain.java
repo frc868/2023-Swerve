@@ -1,6 +1,6 @@
 package frc.robot.subsystems;
 
-import com.kauailabs.navx.frc.AHRS;
+import com.ctre.phoenix.sensors.Pigeon2;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -11,11 +11,12 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import com.techhounds.houndutil.houndlog.LogGroup;
-import com.techhounds.houndutil.houndlog.LogProfileBuilder;
 import com.techhounds.houndutil.houndlog.LoggingManager;
-import com.techhounds.houndutil.houndlog.loggers.DeviceLogger;
+import com.techhounds.houndutil.houndlog.enums.LogType;
 import com.techhounds.houndutil.houndlog.loggers.Logger;
 import com.techhounds.houndutil.houndlog.loggers.SendableLogger;
+import com.techhounds.houndutil.houndlog.loggers.SingleItemLogger;
+
 import frc.robot.Constants;
 import frc.robot.utils.SwerveModule;
 
@@ -59,11 +60,11 @@ public class Drivetrain extends SubsystemBase {
             Constants.Drivetrain.Offsets.BACK_RIGHT);
 
     /** The NavX, connected via MXP to the RoboRIO. */
-    private AHRS navx = new AHRS();
+    private Pigeon2 pigeon = new Pigeon2(0);
 
     /** Calculates odometry (robot's position) throughout the match. */
     private SwerveDriveOdometry odometry = new SwerveDriveOdometry(Constants.Drivetrain.Geometry.KINEMATICS,
-            new Rotation2d(navx.getYaw()));
+            getGyroRotation2d());
 
     /** Field that the robot's position can be drawn on and send via NT. */
     private Field2d field = new Field2d();
@@ -79,11 +80,10 @@ public class Drivetrain extends SubsystemBase {
 
     /** Initializes the drivetrain. */
     public Drivetrain() {
-        navx.reset();
+        resetGyroAngle();
         LoggingManager.getInstance().addGroup("Drivetrain", new LogGroup(
                 new Logger[] {
-                        new DeviceLogger<AHRS>(navx, "NavX",
-                                LogProfileBuilder.buildNavXLogItems(navx)),
+                        new SingleItemLogger<Double>(LogType.NUMBER, "Gyro Angle", this::getGyroAngle),
                         new SendableLogger("field", field),
                 }));
     }
@@ -94,8 +94,8 @@ public class Drivetrain extends SubsystemBase {
      */
     @Override
     public void periodic() {
-        odometry.update(new Rotation2d(
-                navx.getYaw()),
+        odometry.update(
+                getGyroRotation2d(),
                 frontLeft.getState(),
                 frontRight.getState(),
                 backLeft.getState(),
@@ -133,7 +133,7 @@ public class Drivetrain extends SubsystemBase {
                 break;
             case FIELD_ORIENTED:
                 chassisSpeeds = ChassisSpeeds.fromFieldRelativeSpeeds(xSpeed, ySpeed,
-                        thetaSpeed, navx.getRotation2d());
+                        thetaSpeed, getGyroRotation2d());
                 break;
         }
         SwerveModuleState[] states = Constants.Drivetrain.Geometry.KINEMATICS.toSwerveModuleStates(chassisSpeeds);
@@ -161,14 +161,23 @@ public class Drivetrain extends SubsystemBase {
      * @return the angle of the gyro in degrees
      */
     public double getGyroAngle() {
-        return navx.getRotation2d().getDegrees();
+        return pigeon.getYaw();
+    }
+
+    /**
+     * Gets the angle of the gyro in degrees.
+     * 
+     * @return the angle of the gyro in degrees
+     */
+    public Rotation2d getGyroRotation2d() {
+        return Rotation2d.fromDegrees(pigeon.getYaw());
     }
 
     /**
      * Reset gyro angle.
      */
     public void resetGyroAngle() {
-        navx.reset();
+        pigeon.setYaw(0);
     }
 
     /**
