@@ -48,19 +48,18 @@ public final class Constants {
 
         public static final class PID {
             public static final class Drive {
-                public static final double kP = 1.0; // recommended by SDS
-                public static final double kI = 0.0; // recommended by SDS
-                public static final double kD = 0.1; // recommended by SDS
-                public static final double kS = 0.0;
-                public static final double kV = 0.0;
+                public static final double kP = 3.3657;
+                public static final double kI = 0.0;
+                public static final double kD = 0.0;
+                public static final double kS = 0.12817;
+                public static final double kV = 2.7653;
+                public static final double kA = 0.29499;
             }
 
             public static final class Turn {
                 public static final double kP = 0.15;
                 public static final double kI = 0.0;
                 public static final double kD = 0.0;
-                public static final double kS = 0.0;
-                public static final double kV = 0.0;
             }
 
             public static final class TurnToAngle {
@@ -105,8 +104,8 @@ public final class Constants {
 
         public static final class Offsets {
             public static final double FRONT_LEFT = -4.654;
-            public static final double FRONT_RIGHT = -0.323;
-            public static final double BACK_LEFT = -1.291;
+            public static final double FRONT_RIGHT = -3.465;
+            public static final double BACK_LEFT = -4.433;
             public static final double BACK_RIGHT = -4.580;
         }
 
@@ -115,16 +114,27 @@ public final class Constants {
             public static final double TRACK_WIDTH_METERS = 0.625475;
             /** Distance between front and back wheels on robot. */
             public static final double WHEEL_BASE_METERS = 0.625475;
+
+            public static final double GEARING = 1.0 / 6.75;
             public static final double WHEEL_RADIUS_METERS = 0.048;
+            public static final double WHEEL_CIRCUMFERENCE = 2.0 * Math.PI * WHEEL_RADIUS_METERS;
+            public static final double ENCODER_DISTANCE_TO_METERS = WHEEL_CIRCUMFERENCE * GEARING;
+
             public static final double MAX_PHYSICAL_VELOCITY_METERS_PER_SECOND = 4.42;
             public static final double MAX_ANGULAR_VELOCITY_RADIANS_PER_SECOND = Math.PI / 4;
             public static final double MAX_ANGULAR_ACCELERATION_RADIANS_PER_SECOND_SQUARED = 2 * Math.PI;
 
-            public static final SwerveDriveKinematics KINEMATICS = new SwerveDriveKinematics(
+            public static final Translation2d[] SWERVE_MODULE_LOCATIONS = new Translation2d[] {
                     new Translation2d(WHEEL_BASE_METERS / 2, TRACK_WIDTH_METERS / 2),
                     new Translation2d(WHEEL_BASE_METERS / 2, -TRACK_WIDTH_METERS / 2),
                     new Translation2d(-WHEEL_BASE_METERS / 2, TRACK_WIDTH_METERS / 2),
-                    new Translation2d(-WHEEL_BASE_METERS / 2, -TRACK_WIDTH_METERS / 2));
+                    new Translation2d(-WHEEL_BASE_METERS / 2, -TRACK_WIDTH_METERS / 2) };
+
+            public static final SwerveDriveKinematics KINEMATICS = new SwerveDriveKinematics(
+                    SWERVE_MODULE_LOCATIONS[0],
+                    SWERVE_MODULE_LOCATIONS[1],
+                    SWERVE_MODULE_LOCATIONS[2],
+                    SWERVE_MODULE_LOCATIONS[3]);
         }
     }
 
