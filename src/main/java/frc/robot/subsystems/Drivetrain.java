@@ -4,6 +4,7 @@ import com.ctre.phoenix.sensors.Pigeon2;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Transform2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveDriveOdometry;
@@ -32,7 +33,7 @@ public class Drivetrain extends SubsystemBase {
             Constants.Drivetrain.CANIDs.FrontLeft.DRIVE_MOTOR,
             Constants.Drivetrain.CANIDs.FrontLeft.TURN_MOTOR,
             Constants.Drivetrain.CANIDs.FrontLeft.TURN_ENCODER,
-            true, true, false,
+            false, true, false,
             Constants.Drivetrain.Offsets.FRONT_LEFT);
 
     /** The front right swerve module when looking at the bot from behind. */
@@ -56,7 +57,7 @@ public class Drivetrain extends SubsystemBase {
             Constants.Drivetrain.CANIDs.BackRight.DRIVE_MOTOR,
             Constants.Drivetrain.CANIDs.BackRight.TURN_MOTOR,
             Constants.Drivetrain.CANIDs.BackRight.TURN_ENCODER,
-            true, true, false,
+            false, true, false,
             Constants.Drivetrain.Offsets.BACK_RIGHT);
 
     /** The NavX, connected via MXP to the RoboRIO. */
@@ -77,6 +78,8 @@ public class Drivetrain extends SubsystemBase {
 
     /** The mode of driving, either robot relative or field relative. */
     private DriveMode driveMode = DriveMode.FIELD_ORIENTED;
+
+    private double turnRegister = 0;
 
     /** Initializes the drivetrain. */
     public Drivetrain() {
@@ -101,6 +104,10 @@ public class Drivetrain extends SubsystemBase {
                 backLeft.getState(),
                 backRight.getState());
         field.setRobotPose(odometry.getPoseMeters());
+    }
+
+    public void resetOdometry(Pose2d pose) {
+        odometry.resetPosition(pose, getGyroRotation2d());
     }
 
     public DriveMode getDriveMode() {
@@ -149,10 +156,10 @@ public class Drivetrain extends SubsystemBase {
      *               right)
      */
     public void setModuleStates(SwerveModuleState[] states) {
-        frontLeft.setStateSimple(states[0]);
-        frontRight.setStateSimple(states[1]);
-        backLeft.setStateSimple(states[2]);
-        backRight.setStateSimple(states[3]);
+        frontLeft.setState(states[0]);
+        frontRight.setState(states[1]);
+        backLeft.setState(states[2]);
+        backRight.setState(states[3]);
     }
 
     /**
@@ -194,5 +201,71 @@ public class Drivetrain extends SubsystemBase {
      */
     public Pose2d getPose() {
         return odometry.getPoseMeters();
+    }
+
+    public SwerveModuleState[] getModuleStates() {
+        return new SwerveModuleState[] {
+                frontLeft.getState(),
+                frontRight.getState(),
+                backLeft.getState(),
+                backRight.getState()
+        };
+    }
+
+    public void drawRobotOnField(Field2d field) {
+        field.setRobotPose(getPose());
+
+        // Draw a pose that is based on the robot pose, but shifted by the
+        // translation of the module relative to robot center,
+        // then rotated around its own center by the angle of the module.
+        field.getObject("frontLeft").setPose(
+                getPose().transformBy(
+                        new Transform2d(Constants.Drivetrain.Geometry.SWERVE_MODULE_LOCATIONS[0],
+                                getModuleStates()[0].angle)));
+        field.getObject("frontRight").setPose(
+                getPose().transformBy(
+                        new Transform2d(Constants.Drivetrain.Geometry.SWERVE_MODULE_LOCATIONS[1],
+                                getModuleStates()[1].angle)));
+        field.getObject("backLeft").setPose(
+                getPose().transformBy(
+                        new Transform2d(Constants.Drivetrain.Geometry.SWERVE_MODULE_LOCATIONS[2],
+                                getModuleStates()[2].angle)));
+        field.getObject("backRight").setPose(
+                getPose().transformBy(
+                        new Transform2d(Constants.Drivetrain.Geometry.SWERVE_MODULE_LOCATIONS[3],
+                                getModuleStates()[3].angle)));
+    }
+
+    /**
+     * Adds 90 degrees CCW to the internal register for the turning PID controller.
+     * Map this to a button input to turn 90 degrees CCW while still moving.
+     */
+    public void turnCCW90() {
+        turnRegister += Math.PI / 2;
+    }
+
+    /**
+     * Adds 90 degrees CW to the internal register for the turning PID controller.
+     * Map this to a button input to turn 90 degrees CW while still moving.
+     */
+    public void turnCW90() {
+        turnRegister -= Math.PI / 2;
+    }
+
+    /**
+     * Get the amount that has been set in the drivetrain's turning register.
+     * 
+     * @return the angle
+     */
+    public double getTurnRegister() {
+        return turnRegister;
+    }
+
+    /**
+     * Resets the turning register. Do this after the bot has reached its turn
+     * setpoint.
+     */
+    public void resetTurnRegister() {
+        turnRegister = 0.0;
     }
 }
