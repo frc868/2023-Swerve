@@ -58,6 +58,11 @@ public class SwerveModule {
      */
     private double turnCanCoderOffset;
 
+    private double drivePIDControllerOutput = 0.0;
+    private double driveFFControllerOutput = 0.0;
+    private double driveMotorVel = 0.0;
+    private double driveMotorVelCF = 0.0;
+
     /**
      * Initalizes a SwerveModule.
      * 
@@ -82,17 +87,19 @@ public class SwerveModule {
             double turnCanCoderOffset) {
 
         driveMotor = new CANSparkMax(driveMotorChannel, MotorType.kBrushless);
+        driveMotor.restoreFactoryDefaults();
         driveMotor.setInverted(driveMotorInverted);
-        driveMotor.setIdleMode(CANSparkMax.IdleMode.kCoast);
+        driveMotor.setIdleMode(CANSparkMax.IdleMode.kBrake);
+        driveMotor.burnFlash();
         turnMotor = new CANSparkMax(turnMotorChannel, MotorType.kBrushless);
+        turnMotor.restoreFactoryDefaults();
         turnMotor.setIdleMode(CANSparkMax.IdleMode.kBrake);
         turnMotor.setInverted(turnMotorInverted);
+        turnMotor.burnFlash();
 
         driveEncoder = driveMotor.getEncoder();
-        driveEncoder.setPositionConversionFactor(2 * Math.PI * Constants.Drivetrain.Geometry.WHEEL_RADIUS_METERS); // in
-                                                                                                                   // meters
-        driveEncoder
-                .setVelocityConversionFactor((2 * Math.PI * Constants.Drivetrain.Geometry.WHEEL_RADIUS_METERS) / 360.0);
+        driveEncoder.setPositionConversionFactor(Constants.Drivetrain.Geometry.ENCODER_DISTANCE_TO_METERS);
+        driveEncoder.setVelocityConversionFactor(Constants.Drivetrain.Geometry.ENCODER_DISTANCE_TO_METERS / 60.0);
 
         turnCanCoder = new CANCoder(canCoderChannel);
 
@@ -106,7 +113,7 @@ public class SwerveModule {
         turnCanCoder.configAbsoluteSensorRange(AbsoluteSensorRange.Unsigned_0_to_360);
         turnCanCoder.configFeedbackCoefficient(2 * Math.PI / 4096.0, "rad", SensorTimeBase.PerSecond); // radians/sec
 
-        turnPIDController.enableContinuousInput(0, 2 * Math.PI);
+        // turnPIDController.enableContinuousInput(0, 2 * Math.PI);
         turnPIDControllerSimple.enableContinuousInput(0, 2 * Math.PI);
 
         this.turnCanCoderOffset = turnCanCoderOffset;
@@ -121,8 +128,15 @@ public class SwerveModule {
                                 LogProfileBuilder.buildCANCoderLogItems(turnCanCoder)),
                         new SingleItemLogger<Double>(LogType.NUMBER, "Wheel Angle", this::getAngle, LogLevel.MAIN),
                         new SingleItemLogger<Double>(LogType.NUMBER, "CANCoder Position", turnCanCoder::getPosition,
+                                LogLevel.MAIN),
+                        new SingleItemLogger<Double>(LogType.NUMBER, "Drive PID", () -> this.drivePIDControllerOutput,
+                                LogLevel.MAIN),
+                        new SingleItemLogger<Double>(LogType.NUMBER, "Drive FF", () -> this.driveFFControllerOutput,
+                                LogLevel.MAIN),
+                        new SingleItemLogger<Double>(LogType.NUMBER, "Drive Motor Vel", () -> this.driveMotorVel,
+                                LogLevel.MAIN),
+                        new SingleItemLogger<Double>(LogType.NUMBER, "Drive Motor Vel CF", () -> this.driveMotorVelCF,
                                 LogLevel.MAIN)
-
                 }));
     }
 
@@ -141,14 +155,21 @@ public class SwerveModule {
      * @param state the desired state of the swerve module
      */
     public void setState(SwerveModuleState state) {
+        if (state.speedMetersPerSecond < 0.01) {
+            stop();
+            return;
+        }
+
         SwerveModuleState optimizedState = SwerveModuleState.optimize(state,
                 new Rotation2d(getModuleAngle()));
-        double driveOutput = drivePIDController.calculate(driveEncoder.getVelocity(),
-                optimizedState.speedMetersPerSecond)
-                + driveFeedforward.calculate(optimizedState.speedMetersPerSecond);
-        double turnOutput = turnPIDController.calculate(getModuleAngle(), optimizedState.angle.getRadians());
+        this.drivePIDControllerOutput = drivePIDController.calculate(driveEncoder.getVelocity(),
+                optimizedState.speedMetersPerSecond);
+        this.driveFFControllerOutput = driveFeedforward.calculate(optimizedState.speedMetersPerSecond);
+        this.driveMotorVel = driveEncoder.getVelocity();
+        this.driveMotorVelCF = driveEncoder.getVelocityConversionFactor();
+        double turnOutput = turnPIDControllerSimple.calculate(getModuleAngle(), optimizedState.angle.getRadians());
 
-        driveMotor.set(driveOutput);
+        driveMotor.setVoltage(drivePIDControllerOutput + driveFFControllerOutput);
         turnMotor.set(turnOutput);
     }
 
@@ -189,6 +210,7 @@ public class SwerveModule {
      * @return the position of the CANCoder
      */
     public double getModuleAngle() {
+        // System.out.println(turnCanCoder.getPosition() + turnCanCoderOffset);
         return turnCanCoder.getPosition() + turnCanCoderOffset;
     }
 
